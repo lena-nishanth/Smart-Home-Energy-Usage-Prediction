@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Visualization</h3>
+<div class="row g-2 mb-3">
+  <div class="col-12 col-md-4">
+    <label class="form-label">Appliances (compare)</label>
+    <select id="appliance" class="form-select" multiple size="6">
+      <option value="">All</option>
+      {% for a in appliances %}
+      <option value="{{ a }}">{{ a }}</option>
+      {% endfor %}
+    </select>
+    <div class="form-text">Hold Ctrl/Cmd to select multiple.</div>
+  </div>
+  <div class="col-12 col-md-3">
+    <label class="form-label">Start</label>
+    <input id="start" type="datetime-local" class="form-control" />
+  </div>
+  <div class="col-12 col-md-3">
+    <label class="form-label">End</label>
+    <input id="end" type="datetime-local" class="form-control" />
+  </div>
+  <div class="col-12 col-md-2 d-flex align-items-end">
+    <button id="loadBtn" class="btn btn-primary w-100">Load</button>
+  </div>
+</div>
+<div class="d-flex align-items-center gap-2 mb-2">
+  <ul class="nav nav-pills" id="attrTabs">
+    <li class="nav-item"><button class="nav-link active" data-attr="Energy">Energy</button></li>
+    <li class="nav-item"><button class="nav-link" data-attr="Power">Power</button></li>
+    <li class="nav-item"><button class="nav-link" data-attr="Current">Current</button></li>
+    <li class="nav-item"><button class="nav-link" data-attr="Voltage">Voltage</button></li>
+  </ul>
+  <div class="ms-auto btn-group btn-group-sm" role="group">
+    <button class="btn btn-outline-secondary" id="range24">Last 24h</button>
+    <button class="btn btn-outline-secondary" id="range7d">Last 7d</button>
+    <button class="btn btn-outline-secondary" id="rangeAll">All</button>
+  </div>
+  <div class="d-flex align-items-center ms-2 gap-2">
+    <label class="form-label mb-0">Smoothing</label>
+    <input type="range" id="smooth" min="1" max="25" step="1" value="1" />
+    <div class="form-check ms-2">
+      <input class="form-check-input" type="checkbox" id="peaks" />
+      <label class="form-check-label" for="peaks">Show peaks</label>
+    </div>
+    <input id="peaksN" type="number" class="form-control form-control-sm" style="width:80px" min="1" value="10" />
+  </div>
+  <div id="vizInfo" class="small text-muted ms-2"></div>
+  </div>
+<div id="chart" style="width:100%;height:480px;"></div>
+<script>
+  let lastSeries = {};
+  let lastAttr = 'Energy';
+  let lastAppliances = [];
+  const btn = document.getElementById('loadBtn');
+
+  async function loadData() {
+    const select = document.getElementById('appliance');
+    const sel = Array.from(select.selectedOptions).map(o => o.value);
+    const appliances = sel.length ? sel : [''];
+    const start = document.getElementById('start').value;
+    const end = document.getElementById('end').value;
+    btn.disabled = true; const old=btn.innerHTML; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+    lastSeries = {}; lastAppliances = appliances;
+    for (const ap of appliances) {
+      const params = new URLSearchParams();
+      if (ap) params.append('appliance', ap);
+      if (start) params.append('start', start);
+      if (end) params.append('end', end);
+      const res = await fetch(`/api/data?${params.toString()}`);
+      const data = await res.json();
+      if (!data.error) {
+        lastSeries[ap || 'All'] = data.series || [];
+      }
+    }
+    btn.disabled = false; btn.innerHTML = old;
+    renderAttr(lastAttr);
+  }
+
+  function renderAttr(attrName) {
+    lastAttr = attrName;
+    const win = Math.max(1, parseInt(document.getElementById('smooth').value || '1', 10));
+    const traces = [];
+    for (const [ap, series] of Object.entries(lastSeries)) {
+      const filtered = series.filter(s => s.name === attrName);
+      for (const s of filtered) {
+        const y = smoothArray(s.y, win);
+        traces.push({x: s.x, y, type: 'scatter', mode: 'lines', name: ap ? `${ap} - ${s.name}` : s.name});
+        if (document.getElementById('peaks').checked) {
+          const pk = topPeaks(y, Math.max(1, parseInt(document.getElementById('peaksN').value||'10', 10)));
+          const px = pk.map(i => s.x[i]);
+          const py = pk.map(i => y[i]);
+          traces.push({x: px, y: py, mode: 'markers', type: 'scatter', name: `${ap?ap+' ':''}Peaks`, marker: {color: '#dc3545', size: 8, symbol: 'triangle-up'}});
+        }
+      }
+    }
+    const layout = { title: `${attrName} over Time`, legend: {orientation: 'h'}, margin: {t: 40}, xaxis: {}, yaxis: { title: attrName } };
+    Plotly.newPlot('chart', traces, layout);
+    // update info text
+    const anySeries = Object.values(lastSeries)[0] || [];
+    const xs = anySeries.length ? anySeries[0].x : [];
+    const span = xs.length ? `${xs[0]} — ${xs[xs.length-1]}` : '';
+    document.getElementById('vizInfo').textContent = span;
+  }
+
+  function setRange(durationMs) {
+    const gd = document.getElementById('chart');
+    if (!gd || !gd.data || !gd.data.length) return;
+    const x = gd.data[0].x || [];
+    if (!x.length) return;
+    const maxT = new Date(x[x.length-1]).getTime();
+    const minT = durationMs ? (maxT - durationMs) : new Date(x[0]).getTime();
+    Plotly.relayout('chart', { 'xaxis.range': [new Date(minT), new Date(maxT)] });
+  }
+
+  document.getElementById('loadBtn').addEventListener('click', loadData);
+  document.getElementById('attrTabs').addEventListener('click', (e) => {
+    if (e.target && e.target.matches('button.nav-link')) {
+      document.querySelectorAll('#attrTabs .nav-link').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      renderAttr(e.target.getAttribute('data-attr'));
+    }
+  });
+  document.getElementById('smooth').addEventListener('input', () => renderAttr(lastAttr));
+  document.getElementById('peaks').addEventListener('change', () => renderAttr(lastAttr));
+  document.getElementById('peaksN').addEventListener('change', () => renderAttr(lastAttr));
+  
+  function smoothArray(arr, win) {
+    if (!Array.isArray(arr) || win <= 1) return arr;
+    const n = arr.length; const out = new Array(n).fill(null);
+    let sum = 0, cnt = 0; const q = [];
+    for (let i = 0; i < n; i++) {
+      const v = Number(arr[i]);
+      if (isFinite(v)) { q.push(v); sum += v; cnt += 1; }
+      if (q.length > win) { sum -= q.shift(); cnt -= 1; }
+      out[i] = cnt ? (sum / cnt) : null;
+    }
+    return out;
+  }
+  function topPeaks(y, k) {
+    const idx = y.map((v,i)=>[v,i]).filter(([v])=>isFinite(v)).sort((a,b)=>b[0]-a[0]).slice(0,k).map(p=>p[1]);
+    return idx;
+  }
+  document.getElementById('range24').addEventListener('click', () => setRange(24*60*60*1000));
+  document.getElementById('range7d').addEventListener('click', () => setRange(7*24*60*60*1000));
+  document.getElementById('rangeAll').addEventListener('click', () => setRange(null));
+</script>
+{% endblock %}

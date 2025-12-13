@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<section class="hero card border-0 overflow-hidden mb-4">
+  <div class="hero-bg"></div>
+  <div class="card-body py-5 position-relative text-white">
+    <h1 class="fw-semibold mb-2"><i class="bi bi-lightning-charge-fill me-2"></i>Energy Usage Prediction</h1>
+    <p class="mb-4 lead">Upload your smart home CSV, visualize live usage, and compare models to predict energy and cost.</p>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('upload') }}" class="btn btn-warning text-dark fw-semibold"><i class="bi bi-upload me-1"></i>Upload Dataset</a>
+      <a href="{{ url_for('visualize') }}" class="btn btn-outline-light"><i class="bi bi-graph-up-arrow me-1"></i>Visualize</a>
+      <a href="{{ url_for('predict_page') }}" class="btn btn-light text-dark"><i class="bi bi-cpu me-1"></i>Predict</a>
+    </div>
+  </div>
+  {% if not stats.has_data %}
+  <div class="badge bg-danger position-absolute top-0 end-0 m-3">No data loaded</div>
+  {% else %}
+  <div class="badge bg-success position-absolute top-0 end-0 m-3">Dataset loaded</div>
+  {% endif %}
+  </section>
+
+<div class="row g-3">
+  <div class="col-12 col-md-4">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="text-uppercase text-muted mb-0">Total Records</h6>
+          <i class="bi bi-database fs-4 text-primary"></i>
+        </div>
+        <div class="display-6">{{ stats.total_records }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="text-uppercase text-muted mb-0">Total Appliances</h6>
+          <i class="bi bi-plug fs-4 text-success"></i>
+        </div>
+        <div class="display-6">{{ stats.total_appliances }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="text-uppercase text-muted mb-0">Status</h6>
+          <i class="bi bi-activity fs-4 text-info"></i>
+        </div>
+        {% if stats.has_data %}
+        <span class="badge bg-success">Dataset loaded</span>
+        {% else %}
+        <span class="badge bg-secondary">No data</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3"><i class="bi bi-check2-square me-2"></i>Quick Start</h5>
+        <ol class="mb-0">
+          <li>Prepare your CSV with Timestamp, Appliance, Voltage, Current, Power, Energy.</li>
+          <li>Upload the file, then explore charts in Visualize.</li>
+          <li>Pick a model (or Auto) in Predict and compare metrics and costs.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3"><i class="bi bi-lightbulb me-2"></i>Tips</h5>
+        <ul class="mb-0">
+          <li>Use Quick Mode for fast comparisons; uncheck for full comparison.</li>
+          <li>Set Unit Cost (per kWh) to see estimated bills.</li>
+          <li>Use Forecast to see the next H intervals overlaid as a dashed line.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

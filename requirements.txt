@@ -1,0 +1,11 @@
+flask==3.0.0
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+plotly==5.24.1
+xgboost==1.7.6
+catboost==1.2.3
+statsmodels>=0.14.0
+scipy>=1.10.0
+
+
